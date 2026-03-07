@@ -1,41 +1,76 @@
-from fastapi import APIRouter
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Body, HTTPException
 
 from app.db.supabase_client import supabase
 from app.routers._utils import non_null_update_data
+from app.schemas.creates import UnitCreateRequest
+from app.schemas.responses import BulkSyllabusResponse, MessageResponse
 from app.schemas.syllabus import SyllabusCreate
 from app.schemas.updates import UnitUpdate
 
 router = APIRouter(tags=["units"])
 
 
-@router.post("/syllabus/bulk")
-def create_syllabus_bulk(payload: SyllabusCreate):
+@router.post("/syllabus/bulk", response_model=BulkSyllabusResponse)
+def create_syllabus_bulk(
+    payload: SyllabusCreate = Body(
+        ...,
+        examples={
+            "default": {
+                "summary": "Create syllabus in bulk",
+                "value": {
+                    "course_id": "a1b2c3d4-0000-1111-2222-333344445555",
+                    "units": [
+                        {
+                            "unit_number": 1,
+                            "title": "Introduction",
+                            "marks_weight": 10,
+                            "topics": ["Overview", "History"],
+                        }
+                    ],
+                },
+            }
+        },
+    )
+):
     inserted_units = []
+    inserted_unit_ids = []
 
-    for unit in payload.units:
-        unit_result = supabase.table("units").insert(
-            {
-                "course_id": payload.course_id,
-                "unit_number": unit.unit_number,
-                "title": unit.title,
-                "marks_weight": unit.marks_weight,
-            }
-        ).execute()
+    try:
+        for unit in payload.units:
+            unit_result = supabase.table("units").insert(
+                {
+                    "course_id": payload.course_id,
+                    "unit_number": unit.unit_number,
+                    "title": unit.title,
+                    "marks_weight": unit.marks_weight,
+                }
+            ).execute()
 
-        unit_id = unit_result.data[0]["id"]
+            unit_id = unit_result.data[0]["id"]
+            inserted_unit_ids.append(unit_id)
 
-        topic_rows = [{"unit_id": unit_id, "topic_name": topic} for topic in unit.topics]
+            topic_rows = [{"unit_id": unit_id, "topic_name": topic} for topic in unit.topics]
 
-        if topic_rows:
-            supabase.table("topics").insert(topic_rows).execute()
+            if topic_rows:
+                supabase.table("topics").insert(topic_rows).execute()
 
-        inserted_units.append(
-            {
-                "unit_id": unit_id,
-                "title": unit.title,
-                "topics_inserted": len(topic_rows),
-            }
-        )
+            inserted_units.append(
+                {
+                    "unit_id": unit_id,
+                    "title": unit.title,
+                    "topics_inserted": len(topic_rows),
+                }
+            )
+    except Exception as exc:
+        if inserted_unit_ids:
+            supabase.table("topics").delete().in_("unit_id", inserted_unit_ids).execute()
+            supabase.table("units").delete().in_("id", inserted_unit_ids).execute()
+        raise HTTPException(
+            status_code=500,
+            detail="Bulk syllabus insert failed and was rolled back",
+        ) from exc
 
     return {
         "message": "Syllabus inserted successfully",
@@ -44,16 +79,24 @@ def create_syllabus_bulk(payload: SyllabusCreate):
     }
 
 
-@router.post("/units")
-def create_unit(course_id: str, unit_number: int, title: str, marks_weight: int):
-    result = supabase.table("units").insert(
-        {
-            "course_id": course_id,
-            "unit_number": unit_number,
-            "title": title,
-            "marks_weight": marks_weight,
-        }
-    ).execute()
+@router.post("/units", response_model=List[Dict[str, Any]])
+def create_unit(
+    payload: UnitCreateRequest = Body(
+        ...,
+        examples={
+            "default": {
+                "summary": "Create unit",
+                "value": {
+                    "course_id": "a1b2c3d4-0000-1111-2222-333344445555",
+                    "unit_number": 2,
+                    "title": "Data Structures",
+                    "marks_weight": 20,
+                },
+            }
+        },
+    )
+):
+    result = supabase.table("units").insert(payload.model_dump()).execute()
     return result.data
 
 
@@ -76,7 +119,7 @@ def get_units(course_id: str):
     return result.data
 
 
-@router.delete("/units/{unit_id}")
+@router.delete("/units/{unit_id}", response_model=MessageResponse)
 def delete_unit(unit_id: str):
     supabase.table("units").delete().eq("id", unit_id).execute()
     return {"message": "Unit deleted"}

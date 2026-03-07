@@ -1,15 +1,29 @@
-from fastapi import APIRouter
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Body
 
 from app.db.supabase_client import supabase
 from app.routers._utils import non_null_update_data
+from app.schemas.creates import ProgrammeCreate
+from app.schemas.responses import MessageResponse
 from app.schemas.updates import ProgrammeUpdate
 
 router = APIRouter(tags=["programmes"])
 
 
-@router.post("/programmes")
-def create_programme(code: str, name: str):
-    result = supabase.table("programmes").insert({"code": code, "name": name}).execute()
+@router.post("/programmes", response_model=List[Dict[str, Any]])
+def create_programme(
+    payload: ProgrammeCreate = Body(
+        ...,
+        examples={
+            "default": {
+                "summary": "Create programme",
+                "value": {"code": "CSE", "name": "Computer Science and Engineering"},
+            }
+        },
+    )
+):
+    result = supabase.table("programmes").insert(payload.model_dump()).execute()
     return result.data
 
 
@@ -26,7 +40,7 @@ def get_programmes():
     return result.data
 
 
-@router.delete("/programmes/{programme_id}")
+@router.delete("/programmes/{programme_id}", response_model=MessageResponse)
 def delete_programme(programme_id: str):
     supabase.table("programmes").delete().eq("id", programme_id).execute()
     return {"message": "Programme deleted"}
