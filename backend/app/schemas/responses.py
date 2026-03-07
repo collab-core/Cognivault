@@ -23,3 +23,9 @@ class BulkTopicsResponse(BaseModel):
     message: str
     count: int
     data: List[Dict[str, Any]]
+
+
+class BulkReferencesResponse(BaseModel):
+    message: str
+    count: int
+    data: List[Dict[str, Any]]

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -22,3 +22,13 @@ class TopicCreate(BaseModel):
 class TopicBatchCreate(BaseModel):
     unit_id: str
     topics: List[TopicCreate]
+
+
+class ReferenceItem(BaseModel):
+    ref_type: str
+    citation: str
+
+
+class ReferenceBatchCreate(BaseModel):
+    course_id: str
+    references: List[ReferenceItem]
