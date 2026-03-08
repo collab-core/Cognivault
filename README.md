@@ -42,6 +42,18 @@ uvicorn main:app --reload
 
 Backend default URL: `http://127.0.0.1:8000`
 
+## Backend API
+
+Main route groups (browse interactively at `http://127.0.0.1:8000/docs` while the backend is running):
+
+- `programmes`: CRUD for academic programmes.
+- `courses`: CRUD for courses and course lookup by programme/code.
+- `units`: Unit management and bulk syllabus insertion.
+- `topics`: Topic CRUD and bulk topic insertion per unit.
+- `references`: Course reference CRUD and bulk reference insertion.
+- `syllabus`: Consolidated syllabus fetch by course.
+- `mcp`: Context selection, course-grounded prompt validation, and chat response flow.
+
 ## Frontend Setup
 
 ```powershell
