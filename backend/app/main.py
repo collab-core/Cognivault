@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.routers.courses import router as courses_router
+from app.routers.mcp import router as mcp_router
 from app.routers.programmes import router as programmes_router
 from app.routers.references import router as references_router
 from app.routers.syllabus import router as syllabus_router
@@ -15,3 +16,4 @@ app.include_router(units_router)
 app.include_router(topics_router)
 app.include_router(references_router)
 app.include_router(syllabus_router)
+app.include_router(mcp_router)
