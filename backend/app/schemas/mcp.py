@@ -27,3 +27,11 @@ class McpGroundResponse(BaseModel):
     relevant: bool
     reason: str
     augmented_prompt: str | None = None
+
+
+class McpChatResponse(BaseModel):
+    course_id: str
+    course_code: str
+    relevant: bool
+    reason: str
+    answer: str | None = None

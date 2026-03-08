@@ -4,7 +4,8 @@ from typing import Any, Dict, List, Tuple
 from fastapi import APIRouter, HTTPException
 
 from app.db.supabase_client import supabase
-from app.schemas.mcp import McpCourseOption, McpGroundRequest, McpGroundResponse
+from app.schemas.mcp import McpChatResponse, McpCourseOption, McpGroundRequest, McpGroundResponse
+from app.services.llm_chat import generate_answer
 from app.services.llm_relevance import classify_prompt_relevance
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
@@ -157,4 +158,34 @@ def ground_prompt(payload: McpGroundRequest):
         "relevant": True,
         "reason": reason,
         "augmented_prompt": augmented_prompt,
+    }
+
+
+@router.post("/chat", response_model=McpChatResponse)
+def chat_with_context(payload: McpGroundRequest):
+    """Ground the prompt against the syllabus and return an LLM-generated answer."""
+    ground_result = ground_prompt(payload)
+
+    if not ground_result["relevant"]:
+        return {
+            "course_id": ground_result["course_id"],
+            "course_code": ground_result["course_code"],
+            "relevant": False,
+            "reason": ground_result["reason"],
+            "answer": None,
+        }
+
+    try:
+        answer = generate_answer(ground_result["augmented_prompt"])
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"LLM call failed: {exc}") from exc
+
+    return {
+        "course_id": ground_result["course_id"],
+        "course_code": ground_result["course_code"],
+        "relevant": True,
+        "reason": ground_result["reason"],
+        "answer": answer,
     }
