@@ -1,20 +1,62 @@
 import { useState, useRef, useEffect } from 'react'
 import { chatWithContext } from '../api'
 
+const STORAGE_KEY_PREFIX = 'syllabase_chat_'
+
+function getStorageKey(courseId) {
+  return `${STORAGE_KEY_PREFIX}${courseId}`
+}
+
+function loadChatFromStorage(courseId) {
+  if (!courseId) return []
+  try {
+    const stored = localStorage.getItem(getStorageKey(courseId))
+    return stored ? JSON.parse(stored) : []
+  } catch (err) {
+    console.error('Failed to load chat from storage:', err)
+    return []
+  }
+}
+
+function saveChatToStorage(courseId, messages) {
+  if (!courseId) return
+  try {
+    localStorage.setItem(getStorageKey(courseId), JSON.stringify(messages))
+  } catch (err) {
+    console.error('Failed to save chat to storage:', err)
+  }
+}
+
+function clearChatFromStorage(courseId) {
+  if (!courseId) return
+  try {
+    localStorage.removeItem(getStorageKey(courseId))
+  } catch (err) {
+    console.error('Failed to clear chat from storage:', err)
+  }
+}
+
 export default function ChatInterface({ activeContext }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
-  // Reset chat when course context changes
+  // Load chat from localStorage when course context changes
   useEffect(() => {
-    setMessages([])
+    if (activeContext?.course?.id) {
+      const savedMessages = loadChatFromStorage(activeContext.course.id)
+      setMessages(savedMessages)
+    } else {
+      setMessages([])
+    }
     setInput('')
+    setShowClearConfirm(false)
   }, [activeContext?.course?.id])
 
   async function handleSend() {
@@ -22,9 +64,20 @@ export default function ChatInterface({ activeContext }) {
     if (!prompt || !activeContext || sending) return
 
     const userMsg = { id: Date.now(), role: 'user', content: prompt }
-    setMessages(prev => [...prev, userMsg])
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
     setInput('')
     setSending(true)
+
+    // Build conversation history with sliding window (last 10 messages)
+    const MAX_HISTORY_MESSAGES = 10
+    const conversationHistory = newMessages
+      .slice(-MAX_HISTORY_MESSAGES)
+      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+      .map(msg => ({
+        role: msg.role,
+        content: msg.role === 'user' ? msg.content : (msg.content || '')
+      }))
 
     try {
       const result = await chatWithContext(
@@ -33,23 +86,24 @@ export default function ChatInterface({ activeContext }) {
         activeContext.regulationYear,
         activeContext.course.id,
         prompt,
+        conversationHistory,
       )
 
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'assistant',
-          relevant: result.relevant,
-          reason: result.reason,
-          content: result.relevant ? result.answer : null,
-        },
-      ])
+      const assistantMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        relevant: result.relevant,
+        reason: result.reason,
+        content: result.relevant ? result.answer : null,
+      }
+      const updatedMessages = [...newMessages, assistantMsg]
+      setMessages(updatedMessages)
+      saveChatToStorage(activeContext.course.id, updatedMessages)
     } catch (err) {
-      setMessages(prev => [
-        ...prev,
-        { id: Date.now() + 1, role: 'error', content: err.message },
-      ])
+      const errorMsg = { id: Date.now() + 1, role: 'error', content: err.message }
+      const updatedMessages = [...newMessages, errorMsg]
+      setMessages(updatedMessages)
+      saveChatToStorage(activeContext.course.id, updatedMessages)
     } finally {
       setSending(false)
     }
@@ -60,6 +114,12 @@ export default function ChatInterface({ activeContext }) {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  function handleClearChat() {
+    clearChatFromStorage(activeContext.course.id)
+    setMessages([])
+    setShowClearConfirm(false)
   }
 
   const hasContext = !!activeContext
@@ -74,6 +134,14 @@ export default function ChatInterface({ activeContext }) {
             <div className="course-meta">
               Sem {activeContext.semester} &middot; Reg {activeContext.regulationYear}
             </div>
+            <button
+              className="clear-chat-btn"
+              onClick={() => setShowClearConfirm(true)}
+              title="Clear chat history"
+              aria-label="Clear chat history"
+            >
+              🗑️
+            </button>
           </>
         ) : (
           <div className="no-context-hint">
@@ -157,6 +225,23 @@ export default function ChatInterface({ activeContext }) {
           )}
         </button>
       </div>
+
+      {showClearConfirm && (
+        <div className="modal-overlay" onClick={() => setShowClearConfirm(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h3>Clear Chat History?</h3>
+            <p>This will delete all messages in this course. This action cannot be undone.</p>
+            <div className="modal-actions">
+              <button className="modal-cancel" onClick={() => setShowClearConfirm(false)}>
+                Cancel
+              </button>
+              <button className="modal-confirm" onClick={handleClearChat}>
+                Clear Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

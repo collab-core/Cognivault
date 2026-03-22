@@ -11,6 +11,7 @@ class McpGroundRequest(BaseModel):
     selection: McpSelection
     course_id: str
     user_prompt: str
+    conversation_history: list[dict] = []
 
 
 class McpCourseOption(BaseModel):

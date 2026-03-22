@@ -68,6 +68,7 @@ def classify_prompt_relevance(
     course_code: str,
     user_prompt: str,
     syllabus_context: str = "",
+    conversation_context: str = "",
 ) -> Tuple[bool, str]:
     if not GROQ_API_KEY:
         return False, "LLM API key not configured - cannot verify relevance"
@@ -95,15 +96,22 @@ def classify_prompt_relevance(
             "You are a strict relevance classifier for course-scoped Q&A. "
             "Decide if the user's prompt is relevant to the given course syllabus. "
             "Use the syllabus context to decide. "
+            "If conversation context is provided, use it to resolve pronouns (it, that, this, etc.). "
             "Return only compact JSON with keys: relevant (boolean), reason (string)."
         )
 
-        user_message = (
-            f"Course: {course_name} ({course_code})\n"
-            f"Syllabus context:\n{syllabus_context or 'No syllabus context provided'}\n\n"
-            f"User prompt: {user_prompt}\n"
-            "Is this prompt relevant to the course scope?"
-        )
+        user_message_parts = [
+            f"Course: {course_name} ({course_code})",
+            f"Syllabus context:\n{syllabus_context or 'No syllabus context provided'}",
+        ]
+        
+        if conversation_context:
+            user_message_parts.append(f"Recent conversation:\n{conversation_context}")
+        
+        user_message_parts.append(f"User prompt: {user_prompt}")
+        user_message_parts.append("Is this prompt relevant to the course scope?")
+        
+        user_message = "\n\n".join(user_message_parts)
 
         response = client.chat.completions.create(
             model=GROQ_MODEL,

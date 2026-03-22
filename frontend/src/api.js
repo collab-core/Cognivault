@@ -17,7 +17,7 @@ export async function getCourses(programmeId, semester, regulationYear) {
   return res.json()
 }
 
-export async function chatWithContext(programmeId, semester, regulationYear, courseId, userPrompt) {
+export async function chatWithContext(programmeId, semester, regulationYear, courseId, userPrompt, conversationHistory = []) {
   const res = await fetch(`${BASE_URL}/mcp/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -29,6 +29,7 @@ export async function chatWithContext(programmeId, semester, regulationYear, cou
       },
       course_id: courseId,
       user_prompt: userPrompt,
+      conversation_history: conversationHistory,
     }),
   })
   if (!res.ok) {

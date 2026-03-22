@@ -1,6 +1,34 @@
 import { useState, useEffect } from 'react'
 import { getSelections, getCourses } from '../api'
 
+const STORAGE_KEY_SELECTIONS = 'syllabase_selections'
+
+function saveSelectionsToStorage(programme, semester, regYear, courseId) {
+  const selections = {
+    programmeId: programme?.id || null,
+    programmeName: programme?.name || null,
+    programmeCode: programme?.code || null,
+    semester: semester ?? null,
+    regulationYear: regYear ?? null,
+    courseId: courseId || null,
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY_SELECTIONS, JSON.stringify(selections))
+  } catch (err) {
+    console.error('Failed to save selections to storage:', err)
+  }
+}
+
+function loadSelectionsFromStorage() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_SELECTIONS)
+    return stored ? JSON.parse(stored) : null
+  } catch (err) {
+    console.error('Failed to load selections from storage:', err)
+    return null
+  }
+}
+
 export default function SelectionPanel({ onContextSet, activeContext }) {
   const [selections, setSelections] = useState({ programmes: [], semesters: [], regulation_years: [] })
   const [loading, setLoading] = useState(true)
@@ -13,47 +41,99 @@ export default function SelectionPanel({ onContextSet, activeContext }) {
   const [courses, setCourses] = useState([])
   const [coursesLoading, setCoursesLoading] = useState(false)
 
+  // Load initial selections from API, then restore from localStorage
   useEffect(() => {
     getSelections()
-      .then(data => setSelections(data))
+      .then(data => {
+        setSelections(data)
+
+        // Try to restore state from localStorage
+        const saved = loadSelectionsFromStorage()
+        if (saved && data.programmes) {
+          // Find and restore programme
+          const programme = data.programmes.find(p => p.id === saved.programmeId)
+          if (programme) {
+            setSelectedProgramme(programme)
+            
+            // Restore semester if available
+            if (saved.semester !== null && data.semesters.includes(saved.semester)) {
+              setSelectedSemester(saved.semester)
+            }
+            
+            // Restore regulation year if available
+            if (saved.regulationYear !== null && data.regulation_years.includes(saved.regulationYear)) {
+              setSelectedRegYear(saved.regulationYear)
+            }
+          }
+        }
+      })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
 
+  // Auto-select and restore course when all filters are ready
   useEffect(() => {
     if (!selectedProgramme || selectedSemester === null || selectedRegYear === null) {
       setCourses([])
       return
     }
+
     setCoursesLoading(true)
     getCourses(selectedProgramme.id, selectedSemester, selectedRegYear)
-      .then(data => setCourses(data))
+      .then(data => {
+        setCourses(data)
+        
+        // Try to restore the course selection
+        const saved = loadSelectionsFromStorage()
+        if (saved && saved.courseId) {
+          const savedCourse = data.find(c => c.id === saved.courseId)
+          if (savedCourse) {
+            // Trigger course selection with slight delay to ensure state is ready
+            setTimeout(() => {
+              onContextSet({
+                programme: selectedProgramme,
+                semester: selectedSemester,
+                regulationYear: selectedRegYear,
+                course: savedCourse,
+              })
+            }, 0)
+          }
+        }
+      })
       .catch(err => setError(err.message))
       .finally(() => setCoursesLoading(false))
-  }, [selectedProgramme, selectedSemester, selectedRegYear])
+  }, [selectedProgramme, selectedSemester, selectedRegYear, onContextSet])
 
   function toggleProgramme(p) {
-    setSelectedProgramme(prev => (prev?.id === p.id ? null : p))
+    const newProgramme = selectedProgramme?.id === p.id ? null : p
+    setSelectedProgramme(newProgramme)
+    saveSelectionsToStorage(newProgramme, null, null, null)
     onContextSet(null)
   }
 
   function toggleSemester(s) {
-    setSelectedSemester(prev => (prev === s ? null : s))
+    const newSemester = selectedSemester === s ? null : s
+    setSelectedSemester(newSemester)
+    saveSelectionsToStorage(selectedProgramme, newSemester, selectedRegYear, null)
     onContextSet(null)
   }
 
   function toggleRegYear(y) {
-    setSelectedRegYear(prev => (prev === y ? null : y))
+    const newRegYear = selectedRegYear === y ? null : y
+    setSelectedRegYear(newRegYear)
+    saveSelectionsToStorage(selectedProgramme, selectedSemester, newRegYear, null)
     onContextSet(null)
   }
 
   function handleCourseSelect(course) {
-    onContextSet({
+    const context = {
       programme: selectedProgramme,
       semester: selectedSemester,
       regulationYear: selectedRegYear,
       course,
-    })
+    }
+    saveSelectionsToStorage(selectedProgramme, selectedSemester, selectedRegYear, course.id)
+    onContextSet(context)
   }
 
   if (loading) {
