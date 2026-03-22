@@ -50,6 +50,13 @@ uvicorn main:app --reload
 
 Backend default URL: `http://127.0.0.1:8000`
 
+## Uptime Monitoring (UptimeRobot)
+
+- Health endpoint: `GET/HEAD /health`
+- Monitor URL example: `https://syllabase.onrender.com/health`
+- Recommended monitor type: `HTTP(s)` with `HEAD` request method
+- Expected success: HTTP `200`
+
 ## Backend API
 
 Main route groups (browse interactively at `http://127.0.0.1:8000/docs` while the backend is running):

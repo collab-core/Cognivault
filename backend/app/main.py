@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import BACKEND_CORS_ORIGINS, BACKEND_CORS_ORIGIN_REGEX
@@ -20,6 +20,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health", include_in_schema=False)
+def health_get():
+    return {"status": "ok"}
+
+
+@app.head("/health", include_in_schema=False)
+def health_head():
+    return Response(status_code=200)
 
 app.include_router(programmes_router)
 app.include_router(courses_router)
