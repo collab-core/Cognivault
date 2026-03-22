@@ -1,9 +1,23 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+
+async function requestJson(path, options) {
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, options)
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}))
+      throw new Error(detail.detail || `Request failed: ${res.status} ${res.statusText}`)
+    }
+    return res.json()
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error(`Cannot reach backend at ${BASE_URL}. Check VITE_API_URL and backend CORS settings.`)
+    }
+    throw err
+  }
+}
 
 export async function getSelections() {
-  const res = await fetch(`${BASE_URL}/mcp/selections`)
-  if (!res.ok) throw new Error(`Failed to load selections: ${res.statusText}`)
-  return res.json()
+  return requestJson('/mcp/selections')
 }
 
 export async function getCourses(programmeId, semester, regulationYear) {
@@ -12,13 +26,11 @@ export async function getCourses(programmeId, semester, regulationYear) {
     semester: String(semester),
     regulation_year: String(regulationYear),
   })
-  const res = await fetch(`${BASE_URL}/mcp/courses?${params}`)
-  if (!res.ok) throw new Error(`Failed to load courses: ${res.statusText}`)
-  return res.json()
+  return requestJson(`/mcp/courses?${params}`)
 }
 
 export async function chatWithContext(programmeId, semester, regulationYear, courseId, userPrompt, conversationHistory = []) {
-  const res = await fetch(`${BASE_URL}/mcp/chat`, {
+  return requestJson('/mcp/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -32,9 +44,4 @@ export async function chatWithContext(programmeId, semester, regulationYear, cou
       conversation_history: conversationHistory,
     }),
   })
-  if (!res.ok) {
-    const detail = await res.json().catch(() => ({}))
-    throw new Error(detail.detail || `Request failed: ${res.statusText}`)
-  }
-  return res.json()
 }

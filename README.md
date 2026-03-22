@@ -32,6 +32,7 @@ SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_key
 GROQ_API_KEY=your_groq_api_key
 GROQ_MODEL=llama-3.1-8b-instant
+BACKEND_CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
 Run backend:
@@ -66,7 +67,7 @@ Frontend default URL: `http://localhost:5173`
 
 ## Development Notes
 
-- Backend CORS currently allows `http://localhost:5173` and `http://localhost:3000`.
+- Backend CORS is controlled by `BACKEND_CORS_ORIGINS` in `backend/.env` (comma-separated list).
 - Backend app title is `Syllabase API`.
 - If Windows venv launcher paths break after moving folders, reinstall the package in that venv (for example: `python -m pip install --force-reinstall uvicorn`).
 
