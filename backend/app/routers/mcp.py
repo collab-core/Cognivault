@@ -115,12 +115,29 @@ def ground_prompt(payload: McpGroundRequest):
         f"Syllabus Units:\\n{chr(10).join(units_text) if units_text else 'No units available.'}"
     )
 
+    # Extract last Q&A pair for conversation context (if available)
+    conversation_context = ""
+    if payload.conversation_history:
+        # Get last 2 messages (last Q&A pair)
+        recent = payload.conversation_history[-2:]
+        if recent:
+            context_parts = []
+            for msg in recent:
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                if role == "user":
+                    context_parts.append(f"Previous question: {content}")
+                elif role == "assistant":
+                    context_parts.append(f"Previous answer: {content}")
+            conversation_context = "\\n".join(context_parts)
+
     try:
         relevant, reason = classify_prompt_relevance(
             course_name=course["name"],
             course_code=course["code"],
             user_prompt=payload.user_prompt,
             syllabus_context=relevance_syllabus_context,
+            conversation_context=conversation_context,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -176,7 +193,10 @@ def chat_with_context(payload: McpGroundRequest):
         }
 
     try:
-        answer = generate_answer(ground_result["augmented_prompt"])
+        answer = generate_answer(
+            ground_result["augmented_prompt"],
+            conversation_history=payload.conversation_history,
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
